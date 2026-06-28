@@ -10,7 +10,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setup(
     name="laraflask-core",
-    version="1.4.0",
+    version="1.4.1",
     author="Laraflask Contributors",
     description="Laravel-inspired framework core for Flask — elegant, expressive, modern.",
     long_description=long_description,

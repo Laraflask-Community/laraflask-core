@@ -1543,7 +1543,7 @@ class ServeCommand(Command):
         port = getattr(args, 'port', 8000)
 
         self.info(f"Laraflask development server started: http://{host}:{port}")
-        os.system(f"python laraflask.py --host={host} --port={port}")
+        os.system(f"python server.py --host={host} --port={port}")
         return 0
 
 
