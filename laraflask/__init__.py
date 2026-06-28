@@ -1,9 +1,9 @@
 """
-Laraflask Framework v1.0.0
+Laraflask Framework v1.3.0
 Elegant · Expressive · Modern · Fast · Scalable · Developer Friendly
 """
 
-__version__ = '1.0.0'
+__version__ = '1.3.0'
 
 def _lazy(module_path, attr):
     """Lazy import helper — avoids loading optional deps at package level."""

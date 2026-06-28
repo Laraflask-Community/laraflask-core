@@ -26,7 +26,7 @@ class Application(Container):
     bootstraps all service providers, and ties together all framework components.
     """
 
-    VERSION = "1.0.0"
+    VERSION = "1.3.0"
 
     def __init__(self, base_path: str = None):
         super().__init__()
@@ -257,7 +257,7 @@ class Application(Container):
 ║  Server      : http://{host}:{port:<35}║
 ║  Debug Mode  : {'ON' if self._flask.config.get('DEBUG') else 'OFF':<43}║
 ╚══════════════════════════════════════════════════════════╝
-"""
+"""  # noqa: E501
 
     def __repr__(self) -> str:
         return f"<Laraflask Application v{self.VERSION} [{self._environment}]>"
