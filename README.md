@@ -1,4 +1,4 @@
-# Laraflask Core v1.3.0
+# Laraflask Core v1.4.0
 
 **A Laravel-inspired framework for Python — built on top of Flask + SQLAlchemy.**
 Elegant. Expressive. Modern.
@@ -14,6 +14,15 @@ pip install laraflask-core[all]
 ```
 
 ## Changelog
+
+### v1.4.0 (2026-06-28)
+- Implemented 9 previously-missing Artisan generator commands: `make:request`, `make:policy`, `make:resource`, `make:rule`, `make:provider`, `make:seeder`, `make:factory`, `make:observer`, `make:command`
+- `make:resource` supports `--jsonapi` to scaffold a `JsonApiResource` instead of the default `ApiResource`
+- `make:policy` and `make:observer` support `--model` to generate type-hinted methods against a specific model
+- Added 3 new base classes required by the generators above, since they didn't exist yet: `laraflask.orm.seeder.Seeder`, `laraflask.orm.factory.Factory` (Faker-backed), `laraflask.orm.observer.Observer`
+- Added `Model.observe(ObserverClass)` — wires an `Observer` to the existing `ModelCreating`/`ModelCreated`/etc. lifecycle events without duplicating dispatch logic. Note: these lifecycle events still aren't dispatched automatically from `save()`/`delete()` — see the generated Observer's docstring for the manual-dispatch workaround
+- Added 26 new unit tests covering every new command and base class
+- Version bump: `1.3.0` → `1.4.0`
 
 ### v1.3.0 (2026-06-28)
 - Eliminated all top-level `from flask import …` in user-space files (routes, Controller, Handler, tests)

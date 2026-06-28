@@ -738,6 +738,59 @@ class Model(metaclass=ModelMeta):
         return QueryBuilder(cls)
 
     @classmethod
+    def observe(cls, observer_class: type) -> None:
+        """
+        [ID] Daftarkan sebuah Observer untuk model ini, menghubungkannya ke
+        event lifecycle yang sudah ada di `laraflask.events.dispatcher`
+        (ModelCreating, ModelCreated, dst) tanpa duplikasi logic — observer
+        hanya bereaksi pada event yang `event.model` adalah instance dari
+        model ini.
+
+        CATATAN: event lifecycle ini saat ini belum di-dispatch otomatis
+        dari `save()`/`delete()` — lihat docstring `Observer` dan README
+        bagian "Known Limitations" untuk cara dispatch manual sementara.
+
+        [EN] Register an Observer for this model, wiring it to the
+        existing lifecycle events in `laraflask.events.dispatcher`
+        (ModelCreating, ModelCreated, etc.) without duplicating logic —
+        the observer only reacts to events whose `event.model` is an
+        instance of this model.
+
+        NOTE: these lifecycle events are not yet automatically dispatched
+        from `save()`/`delete()` — see the `Observer` docstring and the
+        README's "Known Limitations" section for the manual dispatch
+        workaround.
+        """
+        from laraflask.events.dispatcher import (
+            Events, ModelCreating, ModelCreated, ModelUpdating, ModelUpdated,
+            ModelDeleting, ModelDeleted, ModelSaving, ModelSaved,
+        )
+
+        observer = observer_class()
+        hook_map = [
+            (ModelCreating, 'creating'),
+            (ModelCreated, 'created'),
+            (ModelUpdating, 'updating'),
+            (ModelUpdated, 'updated'),
+            (ModelDeleting, 'deleting'),
+            (ModelDeleted, 'deleted'),
+            (ModelSaving, 'saving'),
+            (ModelSaved, 'saved'),
+        ]
+
+        for event_class, hook_name in hook_map:
+            if not hasattr(observer, hook_name):
+                continue
+
+            def make_listener(observer=observer, hook_name=hook_name, model_cls=cls):
+                def listener(event):
+                    if isinstance(getattr(event, 'model', None), model_cls):
+                        getattr(observer, hook_name)(event.model)
+                return listener
+
+            Events.listen(event_class, make_listener())
+
+    @classmethod
     def all(cls, as_collection: bool = False) -> 'List[Model] | Collection':
         """Get all records. Pass `as_collection=True` for a chainable Collection."""
         return cls.query().get(as_collection=as_collection)

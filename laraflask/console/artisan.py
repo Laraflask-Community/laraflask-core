@@ -721,6 +721,608 @@ class {name}(Notification):
         return 0
 
 
+class MakeRequestCommand(Command):
+    """
+    [ID] Membuat class FormRequest baru di app/Requests. FormRequest sudah
+    tersedia di laraflask.validation.validator — command ini hanya
+    men-generate kerangka file-nya (boilerplate), bukan menambah fitur baru.
+
+    [EN] Creates a new FormRequest class in app/Requests. FormRequest
+    already exists in laraflask.validation.validator — this command only
+    generates the boilerplate file, not a new framework feature.
+    """
+
+    name = 'make:request'
+    description = 'Create a new form request class'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        path = os.path.join('app', 'Requests', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Request [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, 'w') as f:
+            f.write(f'''"""
+{name} Form Request
+"""
+
+from laraflask.validation.validator import FormRequest
+
+
+class {name}(FormRequest):
+    """
+    {name} form request.
+    """
+
+    def authorize(self) -> bool:
+        """Determine if the request is authorized."""
+        return True
+
+    def rules(self) -> dict:
+        """Define validation rules."""
+        return {{
+            # 'field': 'required|string|max:255',
+        }}
+
+    def messages(self) -> dict:
+        """Custom error messages."""
+        return {{}}
+
+    def attributes(self) -> dict:
+        """Custom attribute names."""
+        return {{}}
+''')
+
+        self.info(f"Request [{name}] created successfully.")
+        return 0
+
+
+class MakePolicyCommand(Command):
+    """
+    [ID] Membuat class Policy baru di app/Policies. Dengan opsi --model,
+    method standar (view_any, view, create, update, delete, restore,
+    force_delete) di-generate dengan type hint mengarah ke model tersebut.
+
+    [EN] Creates a new Policy class in app/Policies. With the --model
+    option, standard methods (view_any, view, create, update, delete,
+    restore, force_delete) are generated with type hints pointing to that
+    model.
+    """
+
+    name = 'make:policy'
+    description = 'Create a new policy class'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        model = getattr(args, 'model', None)
+        path = os.path.join('app', 'Policies', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Policy [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, 'w') as f:
+            f.write(self._get_stub(name, model))
+
+        self.info(f"Policy [{name}] created successfully.")
+        return 0
+
+    def _get_stub(self, name: str, model: Optional[str]) -> str:
+        model_import = f"from app.Models.{model} import {model}\n" if model else ""
+        model_hint = model if model else "Any"
+
+        return f'''"""
+{name}
+"""
+
+from typing import Any
+{model_import}from laraflask.auth.auth import Policy
+
+
+class {name}(Policy):
+    """
+    {name} authorization policy.
+    """
+
+    def before(self, user: Any, ability: str):
+        """Called before every check on this policy. Return True/False to
+        short-circuit, or None to fall through to the specific method."""
+        return None
+
+    def view_any(self, user: Any) -> bool:
+        return True
+
+    def view(self, user: Any, model: {model_hint}) -> bool:
+        return True
+
+    def create(self, user: Any) -> bool:
+        return True
+
+    def update(self, user: Any, model: {model_hint}) -> bool:
+        return getattr(model, 'user_id', None) == getattr(user, 'id', None)
+
+    def delete(self, user: Any, model: {model_hint}) -> bool:
+        return getattr(model, 'user_id', None) == getattr(user, 'id', None)
+
+    def restore(self, user: Any, model: {model_hint}) -> bool:
+        return self.delete(user, model)
+
+    def force_delete(self, user: Any, model: {model_hint}) -> bool:
+        return False
+'''
+
+
+class MakeResourceCommand(Command):
+    """
+    [ID] Membuat class API Resource baru di app/Resources. Default
+    menggunakan ApiResource (laraflask.api.api). Dengan --jsonapi, generate
+    JsonApiResource (laraflask.api.jsonapi) sebagai gantinya.
+
+    [EN] Creates a new API Resource class in app/Resources. Defaults to
+    ApiResource (laraflask.api.api). With --jsonapi, generates a
+    JsonApiResource (laraflask.api.jsonapi) instead.
+    """
+
+    name = 'make:resource'
+    description = 'Create a new API resource class'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        jsonapi = getattr(args, 'jsonapi', False)
+        path = os.path.join('app', 'Resources', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Resource [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, 'w') as f:
+            f.write(self._get_jsonapi_stub(name) if jsonapi else self._get_stub(name))
+
+        self.info(f"Resource [{name}] created successfully.")
+        return 0
+
+    def _get_stub(self, name: str) -> str:
+        return f'''"""
+{name}
+"""
+
+from laraflask.api.api import ApiResource
+
+
+class {name}(ApiResource):
+    """
+    {name} API resource transformer.
+    """
+
+    def to_array(self) -> dict:
+        # self._resource holds the underlying model/object passed in.
+        return self._resource.to_dict() if hasattr(self._resource, 'to_dict') else dict(self._resource)
+'''
+
+    def _get_jsonapi_stub(self, name: str) -> str:
+        return f'''"""
+{name} (JSON:API)
+"""
+
+from laraflask.api.jsonapi import JsonApiResource
+
+
+class {name}(JsonApiResource):
+    """
+    {name} JSON:API resource transformer.
+    """
+
+    type_ = '{self._to_snake_plural(name)}'
+
+    def attributes(self) -> dict:
+        # self.model holds the underlying model/object passed in.
+        data = self.model.to_dict() if hasattr(self.model, 'to_dict') else dict(self.model)
+        primary_key = getattr(self.model, '__primary_key__', 'id')
+        data.pop(primary_key, None)
+        return data
+
+    def relationships(self) -> dict:
+        return {{}}
+'''
+
+    @staticmethod
+    def _to_snake_plural(name: str) -> str:
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name.replace('Resource', ''))
+        snake = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+        return snake + 's' if not snake.endswith('s') else snake
+
+
+class MakeRuleCommand(Command):
+    """
+    [ID] Membuat class custom validation rule baru di app/Rules. Berbeda
+    dari Laravel (yang punya class Rule formal dengan method passes()),
+    Laraflask saat ini meregistrasi custom rule lewat
+    Validator.extend(name, callback) — stub yang dihasilkan membungkus
+    pola itu dalam sebuah class agar tetap terorganisir & reusable, lalu
+    didaftarkan via classmethod register().
+
+    [EN] Creates a new custom validation rule class in app/Rules. Unlike
+    Laravel (which has a formal Rule class with a passes() method),
+    Laraflask currently registers custom rules via
+    Validator.extend(name, callback) — the generated stub wraps that
+    pattern in a class for organization & reusability, registered via a
+    register() classmethod.
+    """
+
+    name = 'make:rule'
+    description = 'Create a new custom validation rule'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        path = os.path.join('app', 'Rules', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Rule [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        rule_name = self._to_snake(name)
+
+        with open(path, 'w') as f:
+            f.write(f'''"""
+{name} Validation Rule
+"""
+
+from laraflask.validation.validator import Validator
+
+
+class {name}:
+    """
+    {name} custom validation rule.
+
+    Register once (e.g. in a ServiceProvider.boot()):
+        {name}.register()
+
+    Then use it like any other rule:
+        Validator(data, {{'field': 'required|{rule_name}'}})
+    """
+
+    rule_name = '{rule_name}'
+
+    @classmethod
+    def register(cls) -> None:
+        Validator.extend(cls.rule_name, cls.validate)
+
+    @staticmethod
+    def validate(field: str, value, params) -> tuple:
+        """Return (passed: bool, message: str)."""
+        passed = value is not None  # TODO: implement the real rule logic
+        message = f"The {{field}} field is invalid."
+        return passed, message
+''')
+
+        self.info(f"Rule [{name}] created successfully.")
+        self.comment(f"Don't forget to call {name}.register() in a service provider's boot().")
+        return 0
+
+    @staticmethod
+    def _to_snake(name: str) -> str:
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+
+class MakeProviderCommand(Command):
+    """
+    [ID] Membuat class ServiceProvider baru di app/Providers. ServiceProvider
+    sudah tersedia di laraflask.core.providers — command ini hanya
+    men-generate kerangka file-nya.
+
+    [EN] Creates a new ServiceProvider class in app/Providers.
+    ServiceProvider already exists in laraflask.core.providers — this
+    command only generates the boilerplate file.
+    """
+
+    name = 'make:provider'
+    description = 'Create a new service provider class'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        path = os.path.join('app', 'Providers', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Provider [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, 'w') as f:
+            f.write(f'''"""
+{name}
+"""
+
+from laraflask.core.providers import ServiceProvider
+
+
+class {name}(ServiceProvider):
+    """
+    {name}.
+    """
+
+    def register(self) -> None:
+        """Register bindings into the container."""
+        pass
+
+    def boot(self) -> None:
+        """Bootstrap any application services."""
+        pass
+''')
+
+        self.info(f"Provider [{name}] created successfully.")
+        self.comment(f"Remember to add it to the 'providers' list in config/app.py.")
+        return 0
+
+
+class MakeSeederCommand(Command):
+    """
+    [ID] Membuat class Seeder baru di database/seeders. CATATAN: belum ada
+    class dasar Seeder di framework sebelumnya — command ini SEKALIGUS
+    memperkenalkan base class Seeder minimal (laraflask.orm.seeder) yang
+    dipakai oleh stub yang dihasilkan dan oleh `db:seed`.
+
+    [EN] Creates a new Seeder class in database/seeders. NOTE: there was no
+    base Seeder class in the framework before — this command ALSO
+    introduces a minimal Seeder base class (laraflask.orm.seeder) used by
+    the generated stub and by `db:seed`.
+    """
+
+    name = 'make:seeder'
+    description = 'Create a new database seeder class'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        path = os.path.join('database', 'seeders', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Seeder [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, 'w') as f:
+            f.write(f'''"""
+{name}
+"""
+
+from laraflask.orm.seeder import Seeder
+
+
+class {name}(Seeder):
+    """
+    {name} database seeder.
+    """
+
+    def run(self) -> None:
+        """Run the database seeds."""
+        # Example:
+        # from app.Models.User import User
+        # User.create(name='Admin', email='admin@example.com', password='secret')
+        pass
+''')
+
+        self.info(f"Seeder [{name}] created successfully.")
+        return 0
+
+
+class MakeFactoryCommand(Command):
+    """
+    [ID] Membuat class Factory baru di database/factories, terhubung ke
+    Faker. CATATAN: belum ada class dasar Factory di framework sebelumnya
+    — command ini SEKALIGUS memperkenalkan base class Factory minimal
+    (laraflask.orm.factory) yang dipakai oleh stub yang dihasilkan.
+    Membutuhkan paket `faker` terinstal (lihat extras `testing`).
+
+    [EN] Creates a new Factory class in database/factories, wired to
+    Faker. NOTE: there was no base Factory class in the framework before —
+    this command ALSO introduces a minimal Factory base class
+    (laraflask.orm.factory) used by the generated stub. Requires the
+    `faker` package to be installed (see the `testing` extras).
+    """
+
+    name = 'make:factory'
+    description = 'Create a new model factory class'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        model = getattr(args, 'model', None) or name.replace('Factory', '')
+        path = os.path.join('database', 'factories', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Factory [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, 'w') as f:
+            f.write(f'''"""
+{name}
+"""
+
+from laraflask.orm.factory import Factory
+from app.Models.{model} import {model}
+
+
+class {name}(Factory):
+    """
+    {name} for the {model} model.
+    """
+
+    model = {model}
+
+    def definition(self) -> dict:
+        """Define the model's default state."""
+        return {{
+            # 'name': self.faker.name(),
+            # 'email': self.faker.unique().email(),
+        }}
+''')
+
+        self.info(f"Factory [{name}] created successfully.")
+        return 0
+
+
+class MakeObserverCommand(Command):
+    """
+    [ID] Membuat class Observer baru di app/Observers. CATATAN: belum ada
+    class dasar Observer/mekanisme `Model.observe()` di framework
+    sebelumnya — command ini SEKALIGUS memperkenalkan base class Observer
+    minimal (laraflask.orm.observer). Lifecycle hook model
+    (ModelCreating/ModelCreated dkk di events/dispatcher.py) masih belum
+    di-dispatch otomatis dari Model.save()/delete(), sehingga Observer yang
+    dihasilkan command ini perlu didaftarkan & dipanggil manual untuk saat
+    ini — lihat komentar di stub yang dihasilkan.
+
+    [EN] Creates a new Observer class in app/Observers. NOTE: there was no
+    base Observer class / `Model.observe()` mechanism in the framework
+    before — this command ALSO introduces a minimal Observer base class
+    (laraflask.orm.observer). Model lifecycle hooks
+    (ModelCreating/ModelCreated etc. in events/dispatcher.py) are still not
+    automatically dispatched from Model.save()/delete(), so the Observer
+    generated by this command currently needs to be wired up and invoked
+    manually — see the comments in the generated stub.
+    """
+
+    name = 'make:observer'
+    description = 'Create a new model observer class'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        model = getattr(args, 'model', None)
+        path = os.path.join('app', 'Observers', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Observer [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        model_hint = model if model else "Any"
+        model_import = f"from app.Models.{model} import {model}\n" if model else "from typing import Any\n"
+
+        with open(path, 'w') as f:
+            f.write(f'''"""
+{name}
+"""
+
+{model_import}from laraflask.orm.observer import Observer
+
+
+class {name}(Observer):
+    """
+    {name} model observer.
+
+    NOTE: Laraflask doesn't yet dispatch model lifecycle events
+    automatically from Model.save()/delete(). Register this observer
+    with `{model or "YourModel"}.observe({name})` and call the matching
+    hook manually around your save()/delete() calls until automatic
+    dispatching is implemented:
+
+        {model or "YourModel"}.observe({name})
+
+        # post = Post(...)
+        # Events.dispatch(ModelCreating(post))
+        # post.save()
+        # Events.dispatch(ModelCreated(post))
+    """
+
+    def creating(self, model: {model_hint}) -> None:
+        pass
+
+    def created(self, model: {model_hint}) -> None:
+        pass
+
+    def updating(self, model: {model_hint}) -> None:
+        pass
+
+    def updated(self, model: {model_hint}) -> None:
+        pass
+
+    def deleting(self, model: {model_hint}) -> None:
+        pass
+
+    def deleted(self, model: {model_hint}) -> None:
+        pass
+
+    def saving(self, model: {model_hint}) -> None:
+        pass
+
+    def saved(self, model: {model_hint}) -> None:
+        pass
+''')
+
+        self.info(f"Observer [{name}] created successfully.")
+        self.warn("Model lifecycle events are not yet auto-dispatched; see the generated file's docstring.")
+        return 0
+
+
+class MakeCommandCommand(Command):
+    """
+    [ID] Membuat custom Artisan command baru di app/Console.
+
+    [EN] Creates a new custom Artisan command in app/Console.
+    """
+
+    name = 'make:command'
+    description = 'Create a new Artisan command'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        name = args.name
+        command_name = getattr(args, 'command_name', None) or self._to_kebab(name)
+        path = os.path.join('app', 'Console', f"{name}.py")
+
+        if os.path.exists(path):
+            self.error(f"Command [{name}] already exists!")
+            return 1
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        with open(path, 'w') as f:
+            f.write(f'''"""
+{name}
+"""
+
+import argparse
+from laraflask.console.artisan import Command
+
+
+class {name}(Command):
+    """
+    {name} custom Artisan command.
+    """
+
+    name = '{command_name}'
+    description = 'TODO: describe what this command does'
+
+    def handle(self, args: argparse.Namespace) -> int:
+        self.info("Hello from {command_name}!")
+        return 0
+''')
+
+        self.info(f"Command [{name}] created successfully.")
+        self.comment(
+            f"Register it in app/artisan.py (or your bootstrap) via "
+            f"`artisan.add({name}())` to make it available as `python artisan.py {command_name}`."
+        )
+        return 0
+
+    @staticmethod
+    def _to_kebab(name: str) -> str:
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name.replace('Command', ''))
+        snake = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+        return snake.replace('_', ':')
+
+
 class MigrateCommand(Command):
     name = 'migrate'
     description = 'Run the database migrations'
@@ -1010,6 +1612,15 @@ class ArtisanPy:
         MakeEventCommand,
         MakeListenerCommand,
         MakeNotificationCommand,
+        MakeRequestCommand,
+        MakePolicyCommand,
+        MakeResourceCommand,
+        MakeRuleCommand,
+        MakeProviderCommand,
+        MakeSeederCommand,
+        MakeFactoryCommand,
+        MakeObserverCommand,
+        MakeCommandCommand,
         MigrateCommand,
         MigrateRollbackCommand,
         MigrateRefreshCommand,
@@ -1084,6 +1695,15 @@ class ArtisanPy:
             'make:event':        [('name', {})],
             'make:listener':     [('name', {}), ('-e', {'dest': 'event', 'default': None})],
             'make:notification': [('name', {})],
+            'make:request':      [('name', {})],
+            'make:policy':       [('name', {}), ('--model', {'dest': 'model', 'default': None})],
+            'make:resource':     [('name', {}), ('--jsonapi', {'action': 'store_true'})],
+            'make:rule':         [('name', {})],
+            'make:provider':     [('name', {})],
+            'make:seeder':       [('name', {})],
+            'make:factory':      [('name', {}), ('--model', {'dest': 'model', 'default': None})],
+            'make:observer':     [('name', {}), ('--model', {'dest': 'model', 'default': None})],
+            'make:command':      [('name', {}), ('--command-name', {'dest': 'command_name', 'default': None})],
             'migrate:rollback':  [('--step', {'type': int, 'default': 1})],
             'db:seed':           [('--class', {'dest': 'class', 'default': 'DatabaseSeeder'})],
             'queue:work':        [('--queue', {'default': 'default'}),
@@ -1111,7 +1731,7 @@ class ArtisanPy:
   ███████╗██║  ██║██║  ██║██║  ██║██║     ███████╗██║  ██║███████║██║  ██╗
   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝
 {RESET}
-  {DIM}Elegant · Expressive · Modern · Fast · Scalable{RESET}   v1.0.0
+  {DIM}Elegant · Expressive · Modern · Fast · Scalable{RESET}   v1.4.0
 
 {BOLD}Usage:{RESET}
   python artisan.py <command> [options] [arguments]
