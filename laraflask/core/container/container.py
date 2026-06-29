@@ -5,42 +5,12 @@ Powerful dependency injection with singleton, scoped, and transient lifetimes.
 
 from __future__ import annotations
 import inspect
-from typing import Any, Callable, Dict, Optional, Type, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar
+
+from laraflask.core.container.binding_resolution_exception import BindingResolutionException
+from laraflask.core.container.contextual_binding_builder import ContextualBindingBuilder
 
 T = TypeVar('T')
-
-
-class BindingResolutionException(Exception):
-    pass
-
-
-class ContextualBindingBuilder:
-    """
-    [ID] Fluent builder untuk contextual binding, dipakai lewat `Container.when()`.
-    Memungkinkan sintaks: `container.when(Concrete).needs(Abstract).give(Implementation)`.
-
-    [EN] Fluent builder for contextual bindings, used via `Container.when()`.
-    Enables the syntax: `container.when(Concrete).needs(Abstract).give(Implementation)`.
-    """
-
-    def __init__(self, container: 'Container', concrete_key: str):
-        self._container = container
-        self._concrete_key = concrete_key
-        self._abstract: Optional[Any] = None
-
-    def needs(self, abstract: Any) -> 'ContextualBindingBuilder':
-        """Specify which abstract/interface this contextual binding applies to."""
-        self._abstract = abstract
-        return self
-
-    def give(self, implementation: Any) -> 'Container':
-        """Provide the concrete implementation/value and register the binding. Returns the Container."""
-        if self._abstract is None:
-            raise BindingResolutionException(
-                "ContextualBindingBuilder.give() called before .needs(); "
-                "use container.when(X).needs(Y).give(Z)."
-            )
-        return self._container.add_contextual_binding(self._concrete_key, self._abstract, implementation)
 
 
 class Container:
@@ -61,7 +31,7 @@ class Container:
         self._tags: Dict[str, List[str]] = {}
         self._build_stack: List[str] = []
 
-    # ─── Binding ─────────────────────────────────────────────────────────────
+    # --- Binding ---
 
     def bind(self, abstract: Any, concrete: Any = None, shared: bool = False) -> 'Container':
         """Register a binding in the container."""
@@ -106,18 +76,12 @@ class Container:
         self._aliases[alias] = self._get_key(abstract)
         return self
 
-    # ─── Contextual Binding ───────────────────────────────────────────────────
+    # --- Contextual Binding ---
 
     def when(self, concrete: Any) -> 'ContextualBindingBuilder':
         """
-        [ID] Mulai definisi contextual binding: tentukan dependency apa yang
-        harus diberikan ketika `concrete` adalah class yang sedang dibangun.
-        Contoh: `container.when(ReportController).needs(Logger).give(FileLogger)`.
-
-        [EN] Begin a contextual binding definition: specify which concrete
-        implementation to give when `concrete` is the class currently being
-        built. Example:
-        `container.when(ReportController).needs(Logger).give(FileLogger)`.
+        Begin a contextual binding definition.
+        Example: `container.when(ReportController).needs(Logger).give(FileLogger)`.
         """
         return ContextualBindingBuilder(self, self._get_key(concrete))
 
@@ -131,18 +95,10 @@ class Container:
         """Look up a contextual override for `abstract_key` while building `building_key`."""
         return self._contextual.get(building_key, {}).get(abstract_key)
 
-    # ─── Tagging ──────────────────────────────────────────────────────────────
+    # --- Tagging ---
 
     def tag(self, abstracts: Any, *tags: str) -> 'Container':
-        """
-        [ID] Beri tag pada satu atau beberapa binding sekaligus, supaya bisa
-        di-resolve bersamaan lewat `tagged()`. Contoh:
-        `container.tag([ServiceA, ServiceB], 'reports')`.
-
-        [EN] Tag one or more bindings at once so they can be resolved together
-        via `tagged()`. Example:
-        `container.tag([ServiceA, ServiceB], 'reports')`.
-        """
+        """Tag one or more bindings at once so they can be resolved together via `tagged()`."""
         if not isinstance(abstracts, (list, tuple)):
             abstracts = [abstracts]
 
@@ -156,13 +112,10 @@ class Container:
         return self
 
     def tagged(self, tag: str) -> List[Any]:
-        """
-        [ID] Resolve dan kembalikan semua instance yang terdaftar dengan tag tertentu.
-        [EN] Resolve and return every instance registered under the given tag.
-        """
+        """Resolve and return every instance registered under the given tag."""
         return [self.make(key) for key in self._tags.get(tag, [])]
 
-    # ─── Resolution ──────────────────────────────────────────────────────────
+    # --- Resolution ---
 
     def make(self, abstract: Any, parameters: Dict = None) -> Any:
         """Resolve the given type from the container."""
