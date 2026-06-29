@@ -1,2 +1,4 @@
 dist
 laraflask_core.egg-info
+.agents
+__pycache__
